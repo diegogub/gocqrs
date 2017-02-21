@@ -13,7 +13,7 @@ var (
 // Eventstore interface
 type EventStore interface {
 	Store(e Eventer, opt StoreOptions) (uint64, error)
-	Range(streamid string) chan Eventer
+	Range(streamid string) (chan Eventer, uint64)
 	Version(streamid string) (uint64, error)
 }
 

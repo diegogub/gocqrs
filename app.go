@@ -70,7 +70,7 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 
 	// look for entity events, TODO eventstore should cache streams
 	stream := entityName + "-" + id
-	ch := app.Store.Range(stream)
+	ch, _ := app.Store.Range(stream)
 	entity, err := econf.Aggregate(id, ch)
 	if err != nil {
 		return "", 0, err
@@ -103,6 +103,7 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 func (app *App) Run(port string) error {
 	app.Router.POST("/event/:entity", HTTPEventHandler)
 	app.Router.GET("/docs", DocHandler)
+	app.Router.GET("/entity/:entity/:id", EntityHandler)
 	runningApp = app
 	return runningApp.Router.Run(port)
 }
@@ -149,4 +150,34 @@ func HTTPEventHandler(c *gin.Context) {
 
 func DocHandler(c *gin.Context) {
 	c.JSON(200, GenerateDocs(runningApp))
+}
+
+func EntityHandler(c *gin.Context) {
+	e := c.Param("entity")
+	id := c.Param("id")
+	entity, _, err := runningApp.Entity(e, id)
+	if err != nil {
+		c.JSON(400, map[string]string{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, entity)
+}
+
+func (app *App) Entity(name, id string) (*Entity, uint64, error) {
+	econf, ok := app.Entities[name]
+	if !ok {
+		return nil, 0, errors.New("Invalid entity name")
+	}
+
+	// look for entity events, TODO eventstore should cache streams
+	stream := name + "-" + id
+	ch, version := app.Store.Range(stream)
+	entity, err := econf.Aggregate(id, ch)
+	if err != nil {
+		return nil, 0, err
+	}
+	entity.Version = version
+
+	return entity, version, err
 }

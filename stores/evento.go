@@ -48,7 +48,7 @@ func (estore EventoStore) Store(e gocqrs.Eventer, opt gocqrs.StoreOptions) (uint
 	return v, err
 }
 
-func (es EventoStore) Range(streamid string) chan gocqrs.Eventer {
+func (es EventoStore) Range(streamid string) (chan gocqrs.Eventer, uint64) {
 	ch := make(chan gocqrs.Eventer, 20)
 	lastVersion, _ := es.Version(streamid)
 	events := es.client.RangeStream(streamid, 0, lastVersion)
@@ -59,7 +59,7 @@ func (es EventoStore) Range(streamid string) chan gocqrs.Eventer {
 		}
 		close(ch)
 	}()
-	return ch
+	return ch, lastVersion
 }
 
 func (es EventoStore) Version(streamid string) (uint64, error) {

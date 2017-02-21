@@ -161,5 +161,5 @@ func (ep *EntityProperty) NotNull() *EntityProperty {
 	}
 
 	ep.Validations = append(ep.Validations, valid)
-	return episURL
+	return ep
 }
