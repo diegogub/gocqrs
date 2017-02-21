@@ -50,7 +50,6 @@ func NewApp(store EventStore) *App {
 
 func (app *App) RegisterEntity(e *EntityConf) *App {
 	_, has := app.Entities[e.Name]
-	log.Println(has)
 	if !has {
 		app.Entities[e.Name] = e
 	} else {

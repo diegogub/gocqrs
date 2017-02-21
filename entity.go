@@ -40,6 +40,20 @@ func NewEntityConf(name string) *EntityConf {
 	return &e
 }
 
+func (e *EntityConf) AddValidator(v ...Validator) error {
+	var err error
+
+	for _, validator := range v {
+		_, exist := e.Validators[validator.Name()]
+		if exist {
+			log.Fatal("Could not add validator, already set:" + validator.Name())
+		} else {
+			e.Validators[validator.Name()] = validator
+		}
+	}
+	return err
+}
+
 func (e *EntityConf) AddEventHandler(eh ...EventHandler) error {
 	var err error
 	if e.EventHandlers == nil {
@@ -72,9 +86,7 @@ func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error)
 	var err error
 	var entity Entity
 	entity.ID = id
-	log.Println("---------->", entity)
 	for e := range events {
-		log.Println("events:", e)
 		eventHandler, has := ec.EventHandlers[e.GetType()]
 		if !has {
 			return &entity, errors.New("Event " + e.GetType() + " not handled")
@@ -87,14 +99,13 @@ func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error)
 		}
 	}
 
-	log.Println("--->", entity)
-
 	return &entity, err
 }
 
 type Entity struct {
 	ID      string                 `json:"id"`
 	Version uint64                 `json:"version"`
+	Deleted bool                   `json:"deleted"`
 	Data    map[string]interface{} `json:"data"`
 }
 
