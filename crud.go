@@ -1,6 +1,7 @@
 package gocqrs
 
 import (
+	"errors"
 	"log"
 	"strings"
 )
@@ -14,7 +15,12 @@ const (
 var eventsNames = []string{"Created",
 	"Updated",
 	"Deleted",
+	"Undeleted",
 }
+
+var (
+	EntityDeleted = errors.New("Entity deleted, new to undeletet to update")
+)
 
 type CRUDHandler struct {
 	EntityName string `json:"entityName"`
@@ -38,17 +44,25 @@ func (ch CRUDHandler) Handle(ev Eventer, en *Entity) (StoreOptions, error) {
 
 	switch ev.GetType() {
 	case ch.CreateEvent():
+		if en.Deleted {
+			return opt, EntityDeleted
+		}
 		en.Version = 0
 		en.ID = ev.GetId()
 		en.Data = ev.GetData()
 		opt.Create = true
 	case ch.UpdateEvent():
+		if en.Deleted {
+			return opt, EntityDeleted
+		}
 		data := ev.GetData()
-		log.Println(data)
 		for k, d := range data {
 			en.Data[k] = d
 		}
 	case ch.DeletedEvent():
+		en.Deleted = true
+	case ch.UnDeletedEvent():
+		en.Deleted = false
 	}
 	return opt, err
 }
@@ -73,4 +87,8 @@ func (ch CRUDHandler) UpdateEvent() string {
 
 func (ch CRUDHandler) DeletedEvent() string {
 	return strings.Title(ch.EntityName) + "Deleted"
+}
+
+func (ch CRUDHandler) UnDeletedEvent() string {
+	return strings.Title(ch.EntityName) + "UnDeleted"
 }
