@@ -44,11 +44,11 @@ func (e *EntityConf) AddValidator(v ...Validator) error {
 	var err error
 
 	for _, validator := range v {
-		_, exist := e.Validators[validator.Name()]
+		_, exist := e.Validators[validator.GetName()]
 		if exist {
-			log.Fatal("Could not add validator, already set:" + validator.Name())
+			log.Fatal("Could not add validator, already set:" + validator.GetName())
 		} else {
-			e.Validators[validator.Name()] = validator
+			e.Validators[validator.GetName()] = validator
 		}
 	}
 	return err

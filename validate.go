@@ -1,6 +1,7 @@
 package gocqrs
 
 import (
+	"encoding/json"
 	"errors"
 	"github.com/diegogub/lib"
 	"gopkg.in/asaskevich/govalidator.v4"
@@ -8,7 +9,7 @@ import (
 )
 
 type Validator interface {
-	Name() string
+	GetName() string
 	Validate(e Entity) error
 }
 
@@ -16,7 +17,7 @@ type SimpleValidator struct {
 	validators []*EntityProperty
 }
 
-func (sv SimpleValidator) Name() string {
+func (sv SimpleValidator) GetName() string {
 	return "simple-validator"
 }
 
