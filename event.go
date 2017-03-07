@@ -23,10 +23,11 @@ type BaseEvent struct {
 
 type Event struct {
 	BaseEvent
-	Entity       string                 `json:"entity"`
-	EntityID     string                 `json:"eid"`
-	StreamPrefix string                 `json:"sprefix"`
-	EventData    map[string]interface{} `json:"ed"`
+	Entity            string                 `json:"entity"`
+	CorrelationStream string                 `json:"cid"`
+	EntityID          string                 `json:"eid"`
+	StreamPrefix      string                 `json:"sprefix"`
+	EventData         map[string]interface{} `json:"ed"`
 }
 
 func NewEvent(id, t string, data map[string]interface{}) *Event {
@@ -52,7 +53,7 @@ func (e *Event) GetData() map[string]interface{} {
 }
 
 func (e *Event) GetLinks() []string {
-	return []string{e.Entity}
+	return []string{e.CorrelationStream}
 }
 
 func (e *Event) GetStream() string {

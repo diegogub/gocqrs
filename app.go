@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	InvalidEntityError = errors.New("Invalid entity")
+	InvalidEntityError    = errors.New("Invalid entity")
+	InvalidReferenceError = errors.New("Invalid reference")
 )
 
 const (
@@ -33,6 +34,10 @@ type App struct {
 	Entities map[string]*EntityConf `json:"entities"`
 	Store    EventStore             `json:"-"`
 	Router   *gin.Engine
+
+	// turn off auth service check
+	AuthOff    bool   `json:"authOff"`
+	authSecret string `json:"-"`
 }
 
 func (app *App) String() string {
@@ -85,6 +90,26 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 	opt, err := h.Handle(ev, entity)
 	if err != nil {
 		return "", 0, err
+	}
+
+	// check references
+	for _, r := range econf.EntityReferences {
+		var v string
+		value := entity.Data[r.Key]
+		switch value.(type) {
+		case string:
+			v = value.(string)
+			err = app.CheckReference(r.Entity, r.Key, v, r.Null)
+			if err != nil {
+				return "", 0, err
+			}
+		case nil:
+			if r.Null {
+				return "", 0, errors.New("Invalid reference type, should be string")
+			}
+		default:
+			return "", 0, errors.New("Invalid reference type, should be string")
+		}
 	}
 
 	//validate entity
@@ -180,4 +205,18 @@ func (app *App) Entity(name, id string) (*Entity, uint64, error) {
 	entity.Version = version
 
 	return entity, version, err
+}
+
+func (app *App) CheckReference(e, k, value string, null bool) error {
+	if value == "" && null {
+		return nil
+	}
+
+	stream := e + "-" + value
+	_, err := app.Store.Version(stream)
+	if err != nil {
+		return errors.New(InvalidReferenceError.Error() + ": " + k + " - " + value + " - " + stream + " - " + err.Error())
+	}
+
+	return err
 }

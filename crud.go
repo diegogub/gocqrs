@@ -48,7 +48,6 @@ func (ch CRUDHandler) Handle(ev Eventer, en *Entity) (StoreOptions, error) {
 			return opt, EntityDeleted
 		}
 		en.Version = 0
-		en.ID = ev.GetId()
 		en.Data = ev.GetData()
 		opt.Create = true
 	case ch.UpdateEvent():

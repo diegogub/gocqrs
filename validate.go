@@ -1,7 +1,6 @@
 package gocqrs
 
 import (
-	"encoding/json"
 	"errors"
 	"github.com/diegogub/lib"
 	"gopkg.in/asaskevich/govalidator.v4"

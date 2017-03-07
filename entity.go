@@ -27,8 +27,9 @@ type EntityConf struct {
 }
 
 type EntityReference struct {
-	Key  string `json:"key"`
-	Null bool   `json:"null"`
+	Entity string `json:"entity"`
+	Key    string `json:"key"`
+	Null   bool   `json:"null"`
 }
 
 func NewEntityConf(name string) *EntityConf {
@@ -38,6 +39,10 @@ func NewEntityConf(name string) *EntityConf {
 	e.Validators = make(map[string]Validator)
 	e.EventHandlers = make(map[string]EventHandler)
 	return &e
+}
+
+func (e *EntityConf) Reference(en, k string, null bool) {
+	e.EntityReferences = append(e.EntityReferences, EntityReference{en, k, null})
 }
 
 func (e *EntityConf) AddValidator(v ...Validator) error {
@@ -85,7 +90,7 @@ func (e *EntityConf) AddCRUD() *EntityConf {
 func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error) {
 	var err error
 	var entity Entity
-	entity.ID = id
+	entity.Data = make(map[string]interface{})
 	for e := range events {
 		eventHandler, has := ec.EventHandlers[e.GetType()]
 		if !has {
@@ -98,6 +103,7 @@ func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error)
 			return &entity, errors.New("Failed to aggregate entity " + id + " , unorder events")
 		}
 	}
+	entity.ID = id
 
 	return &entity, err
 }
