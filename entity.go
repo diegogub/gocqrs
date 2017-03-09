@@ -67,12 +67,8 @@ func (e *EntityConf) AddEventHandler(eh ...EventHandler) error {
 
 	for _, h := range eh {
 		for _, event := range h.EventName() {
-			_, exist := e.EventHandlers[event]
-			if exist {
-				err = errors.New("Could not add event handler, already set:" + event)
-			} else {
-				e.EventHandlers[event] = h
-			}
+			// replace handler if needed
+			e.EventHandlers[event] = h
 		}
 	}
 
@@ -98,7 +94,7 @@ func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error)
 		}
 
 		if e.GetVersion() == entity.Version+1 || e.GetVersion() == 0 {
-			_, err = eventHandler.Handle(e, &entity)
+			_, err = eventHandler.Handle(id, e, &entity)
 		} else {
 			return &entity, errors.New("Failed to aggregate entity " + id + " , unorder events")
 		}
@@ -127,4 +123,11 @@ func (e *Entity) Decode(i interface{}) error {
 	}
 
 	return err
+}
+
+func ToMap(i interface{}) map[string]interface{} {
+	m := make(map[string]interface{})
+	d, _ := json.Marshal(i)
+	json.Unmarshal(d, &m)
+	return m
 }

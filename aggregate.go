@@ -6,5 +6,5 @@ type Aggregator interface {
 
 type EventHandler interface {
 	EventName() []string
-	Handle(e Eventer, entity *Entity) (StoreOptions, error)
+	Handle(id string, e Eventer, entity *Entity) (StoreOptions, error)
 }

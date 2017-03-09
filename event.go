@@ -1,6 +1,7 @@
 package gocqrs
 
 import (
+	"encoding/json"
 	"github.com/diegogub/lib"
 	"time"
 )
@@ -11,6 +12,7 @@ type Eventer interface {
 	GetVersion() uint64
 	GetType() string
 	GetData() map[string]interface{}
+	SetData(k string, i interface{})
 	GetLinks() []string
 }
 
@@ -66,4 +68,22 @@ func (e *Event) GetType() string {
 
 func (e *Event) GetVersion() uint64 {
 	return e.EventVersion
+}
+
+func (e *Event) SetData(k string, i interface{}) {
+	e.EventData[k] = i
+}
+
+func DecodeEvent(e Eventer, i interface{}) error {
+	b, err := json.Marshal(e.GetData())
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(b, &i)
+	if err != nil {
+		return err
+	}
+
+	return err
 }
