@@ -8,6 +8,7 @@ import (
 	"gopkg.in/gin-gonic/gin.v1"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,6 +36,9 @@ type App struct {
 	Name    string `json:"name"`
 	Port    string `json:"port"`
 
+	// main log stream
+	MainLog string `json:"mlog"`
+
 	// user roles for auth
 	Roles map[string]Role `json:"roles"`
 
@@ -52,12 +56,17 @@ type App struct {
 	LoginReferers   []string `json:"loginReferers"`
 }
 
-func NewApp(store EventStore) *App {
+func NewApp(name string, store EventStore) *App {
 	var app App
+	if name == "" {
+		log.Fatal("Invalid app name")
+	}
+	app.Name = name
 	app.Roles = make(map[string]Role)
 	app.Entities = make(map[string]*EntityConf)
 	app.Router = gin.New()
 	app.Store = store
+	app.MainLog = strings.Replace(strings.ToLower(app.Name), " ", "_", -1) + "_log"
 	// set default session validity
 	app.SessionValidity = "30m"
 	d, _ := time.ParseDuration(app.SessionValidity)
@@ -293,6 +302,7 @@ func HTTPEventHandler(c *gin.Context) {
 	event := NewEvent(eID, eType, data)
 	event.Entity = e
 	event.EntityID = enID
+	event.CorrelationStream = runningApp.MainLog
 
 	// create event
 	id, version, err := runningApp.HandleEvent(event.Entity, event.EntityID, event, v)
