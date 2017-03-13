@@ -59,7 +59,7 @@ func NewApp(store EventStore) *App {
 	app.Router = gin.New()
 	app.Store = store
 	// set default session validity
-	app.SessionValidity = "5m"
+	app.SessionValidity = "30m"
 	d, _ := time.ParseDuration(app.SessionValidity)
 	app.sduration = d
 	return &app
@@ -135,7 +135,7 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 	}
 
 	// handler event
-	opt, err := h.Handle(id, ev, entity)
+	opt, err := h.Handle(id, ev, entity, false)
 	if err != nil {
 		return "", 0, err
 	}
@@ -198,13 +198,13 @@ func AuthHandler(c *gin.Context) {
 
 	e, _, err := runningApp.Entity("user", username)
 	if err != nil {
-		c.JSON(401, map[string]string{"error": "Failed to login"})
+		c.JSON(401, map[string]string{"error": "Failed to login:" + err.Error()})
 		return
 	}
 	e.Decode(&u)
 	err = u.CheckPassword(password)
 	if err != nil {
-		c.JSON(401, map[string]string{"error": "Failed to login"})
+		c.JSON(401, map[string]string{"error": "Failed to login p:" + err.Error()})
 		return
 	}
 
@@ -260,8 +260,10 @@ func HTTPEventHandler(c *gin.Context) {
 
 	data := make(map[string]interface{})
 
+	// Auth event
 	if !runningApp.AuthOff {
 		_, err = runningApp.auth(eType, c)
+		log.Println("--->", err)
 		if err != nil {
 			c.JSON(401, map[string]interface{}{"error": err.Error()})
 			return
@@ -291,7 +293,6 @@ func HTTPEventHandler(c *gin.Context) {
 	event := NewEvent(eID, eType, data)
 	event.Entity = e
 	event.EntityID = enID
-	log.Println(event)
 
 	// create event
 	id, version, err := runningApp.HandleEvent(event.Entity, event.EntityID, event, v)
@@ -309,12 +310,47 @@ func DocHandler(c *gin.Context) {
 }
 
 func EntityHandler(c *gin.Context) {
+	var cl *SessionClaims
+	var err error
+
 	e := c.Param("entity")
 	id := c.Param("id")
+
+	if !runningApp.AuthOff {
+		// I should auth read also
+		cl, err = runningApp.authRead(e, c)
+		if err != nil {
+			c.JSON(401, map[string]string{"error": err.Error()})
+			return
+		}
+
+	}
+
+	// get entity
 	entity, _, err := runningApp.Entity(e, id)
 	if err != nil {
 		c.JSON(400, map[string]string{"error": err.Error()})
 		return
+	}
+
+	econf, ok := runningApp.Entities[e]
+	if !ok {
+		c.JSON(400, map[string]string{"error": "invalid entity conf"})
+		return
+	}
+
+	// auth with custom auther
+	if econf.Auther != nil {
+		if cl == nil {
+			c.JSON(401, map[string]string{"error": "Invalid session claims"})
+			return
+		}
+
+		err = econf.Auther.AuthRead(entity, cl.Username, cl.Role)
+		if err != nil {
+			c.JSON(401, map[string]string{"error": err.Error()})
+			return
+		}
 	}
 
 	c.JSON(200, entity)
@@ -338,7 +374,7 @@ func (app *App) Entity(name, id string) (*Entity, uint64, error) {
 	return entity, version, err
 }
 
-func (app *App) authRole(eventType, role string) bool {
+func (app *App) authRole(role, eventType string) bool {
 	allowed := false
 	for _, r := range app.Roles {
 		if r.Name == role {
@@ -363,6 +399,43 @@ func (app *App) CheckReference(e, k, value string, null bool) error {
 	return err
 }
 
+func (app *App) authRead(entity string, c *gin.Context) (*SessionClaims, error) {
+	var err error
+	t := ""
+	// Read cookie
+	cookieVal, err := c.Cookie(CookieName)
+	if cookieVal == "" {
+		t = c.Request.Header.Get(SessionHeader)
+	} else {
+		t = cookieVal
+	}
+
+	// create session claimsfrom token
+	token, err := jwt.ParseWithClaims(t, &SessionClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(app.Secret), nil
+	})
+
+	if token == nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*SessionClaims); ok && token.Valid {
+		r, exist := app.Roles[claims.Role]
+		if !exist {
+			return claims, errors.New("Invalid role")
+		}
+
+		if !r.CanRead(entity) {
+			return claims, errors.New("Cannot read entity")
+		}
+
+		return claims, err
+	} else {
+		return nil, err
+	}
+
+}
+
 func (app *App) auth(event string, c *gin.Context) (*SessionClaims, error) {
 	var err error
 	t := ""
@@ -385,7 +458,7 @@ func (app *App) auth(event string, c *gin.Context) (*SessionClaims, error) {
 
 	if claims, ok := token.Claims.(*SessionClaims); ok && token.Valid {
 		if !app.authRole(claims.Role, event) {
-			return nil, errors.New("Invalid Role")
+			return nil, errors.New("Invalid Role, " + claims.Role)
 		}
 
 		return claims, err

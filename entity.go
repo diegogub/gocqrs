@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+const (
+	AllRole = "all"
+)
+
 type EntityConf struct {
 	Name string `json:"name"`
 
@@ -24,6 +28,9 @@ type EntityConf struct {
 	EventHandlers map[string]EventHandler `json:"handlers"`
 
 	Validators map[string]Validator `json:"validators"`
+
+	Auther    ReadAuther
+	ReadRoles []string `json:"roles,omitempty"`
 }
 
 type EntityReference struct {
@@ -94,7 +101,7 @@ func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error)
 		}
 
 		if e.GetVersion() == entity.Version+1 || e.GetVersion() == 0 {
-			_, err = eventHandler.Handle(id, e, &entity)
+			_, err = eventHandler.Handle(id, e, &entity, true)
 		} else {
 			return &entity, errors.New("Failed to aggregate entity " + id + " , unorder events")
 		}

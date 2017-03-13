@@ -33,3 +33,7 @@ func NewSession(u *User, validity string) *Session {
 
 	return &s
 }
+
+type ReadAuther interface {
+	AuthRead(e *Entity, username, role string) error
+}

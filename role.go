@@ -2,6 +2,9 @@ package gocqrs
 
 type Role struct {
 	Name string `json:"name"`
+
+	// Access to entities
+	Entities []string
 	// events and read cmd that can be executed ,default ALL
 	Allowed []string `json:"allowed"`
 
@@ -17,6 +20,22 @@ func NewRole(r string) *Role {
 	role.Allowed = make([]string, 0)
 	role.NotAllowed = make([]string, 0)
 	return &role
+}
+
+func (r *Role) CanRead(e string) bool {
+	allowed := false
+	if len(r.Entities) == 0 {
+		allowed = true
+	}
+
+	for _, entity := range r.Entities {
+		if entity == e {
+			allowed = true
+			break
+		}
+	}
+
+	return allowed
 }
 
 func (r *Role) Can(e string) bool {

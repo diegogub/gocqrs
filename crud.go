@@ -38,7 +38,7 @@ func NewCRUDHandler(name string) CRUDHandler {
 }
 
 // Handler CRUD events
-func (ch CRUDHandler) Handle(id string, ev Eventer, en *Entity) (StoreOptions, error) {
+func (ch CRUDHandler) Handle(id string, ev Eventer, en *Entity, replay bool) (StoreOptions, error) {
 	var opt StoreOptions
 	var err error
 

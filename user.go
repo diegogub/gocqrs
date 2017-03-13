@@ -3,6 +3,7 @@ package gocqrs
 import (
 	"errors"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"time"
 )
 
@@ -29,7 +30,7 @@ func (uh UserEventHandler) EventName() []string {
 	}
 }
 
-func (uh UserEventHandler) Handle(id string, event Eventer, entity *Entity) (StoreOptions, error) {
+func (uh UserEventHandler) Handle(id string, event Eventer, entity *Entity, replay bool) (StoreOptions, error) {
 	var opt StoreOptions
 	var err error
 	switch event.GetType() {
@@ -38,17 +39,18 @@ func (uh UserEventHandler) Handle(id string, event Eventer, entity *Entity) (Sto
 		DecodeEvent(event, &u)
 		u.Username = id
 
-		// create new stream
+		// create new user
 		opt.Create = true
-		err = u.Encrypt()
-		if err != nil {
-			return opt, err
-		}
-		u.Created = time.Now().UTC()
-
-		err = u.Valid()
-		if err != nil {
-			return opt, err
+		if !replay {
+			err = u.Encrypt()
+			if err != nil {
+				return opt, err
+			}
+			u.Created = time.Now().UTC()
+			err = u.Valid()
+			if err != nil {
+				return opt, err
+			}
 		}
 
 		event.SetData("password", u.Password)
@@ -77,7 +79,10 @@ func (u *User) Encrypt() error {
 		return errors.New("Invalid password")
 	}
 	b, err := bcrypt.GenerateFromPassword([]byte(u.Password), 11)
+	log.Println(err)
+
 	u.Password = string(b)
+	log.Println(u.Password)
 	return err
 }
 
