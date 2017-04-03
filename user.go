@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+const (
+	UserEntity = "users"
+)
+
 type User struct {
 	Username string    `json:"username"`
 	Password string    `json:"password"`
@@ -58,6 +62,14 @@ func (uh UserEventHandler) Handle(id string, event Eventer, entity *Entity, repl
 	}
 
 	return opt, err
+}
+
+func (uh UserEventHandler) CheckBase(e Eventer) bool {
+	switch e.GetType() {
+	case UserCreatedEvent:
+		return true
+	}
+	return false
 }
 
 func (u *User) Valid() error {

@@ -7,4 +7,5 @@ type Aggregator interface {
 type EventHandler interface {
 	EventName() []string
 	Handle(id string, e Eventer, entity *Entity, replay bool) (StoreOptions, error)
+	CheckBase(e Eventer) bool
 }

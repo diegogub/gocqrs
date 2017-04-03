@@ -66,6 +66,21 @@ func (ch CRUDHandler) Handle(id string, ev Eventer, en *Entity, replay bool) (St
 	return opt, err
 }
 
+func (ch CRUDHandler) CheckBase(e Eventer) bool {
+	switch e.GetType() {
+	case ch.CreateEvent():
+		return true
+	case ch.UpdateEvent():
+		return true
+	case ch.DeletedEvent():
+		return false
+	case ch.UnDeletedEvent():
+		return false
+	default:
+		return false
+	}
+}
+
 func (ch CRUDHandler) EventName() []string {
 	events := make([]string, 0)
 	for _, p := range eventsNames {

@@ -16,6 +16,7 @@ import (
 var (
 	InvalidEntityError    = errors.New("Invalid entity")
 	InvalidReferenceError = errors.New("Invalid reference")
+	BaseUnseted           = errors.New("Basestruct not set, should be setted")
 )
 
 const (
@@ -54,6 +55,9 @@ type App struct {
 	sduration       time.Duration
 	Domain          string   `json:"sessionDomain"`
 	LoginReferers   []string `json:"loginReferers"`
+
+	// View
+	Views map[string]Viewer
 }
 
 func NewApp(name string, store EventStore) *App {
@@ -84,13 +88,14 @@ func (app *App) Auth(s Sessioner, evh ...EventHandler) {
 	// Add user entity
 	app.Sessions = s
 
-	userEntity := NewEntityConf("user")
+	userEntity := NewEntityConf(UserEntity)
 	userEntity.AddCRUD()
 
 	for _, h := range evh {
 		userEntity.AddEventHandler(h)
 	}
 	userEntity.AddEventHandler(UserEventHandler{})
+	userEntity.SetBaseStruct(User{})
 
 	app.RegisterEntity(userEntity)
 }
@@ -143,6 +148,18 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 		return "", 0, errors.New("Invalid handler for event:" + ev.GetType())
 	}
 
+	// check base
+	if h.CheckBase(ev) {
+		if econf.BaseSeted {
+			err = econf.checkBase(ev.GetData())
+			if err != nil {
+				return "", 0, err
+			}
+		} else {
+			return "", 0, BaseUnseted
+		}
+	}
+
 	// handler event
 	opt, err := h.Handle(id, ev, entity, false)
 	if err != nil {
@@ -183,12 +200,30 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 
 // Start app
 func (app *App) Run(port string) error {
+
+	log.Println("-----------------------------------", "\n")
+	log.Println("Correlation stream: ", app.MainLog)
+	log.Println("-----------------------------------")
+	// Add views
+	for _, v := range app.Views {
+		switch v.Verb() {
+		case "POST":
+			app.Router.POST("/v/:entity/:viewid", app.ViewHandler)
+		case "PUT":
+			app.Router.PUT("/v/:entity/:viewid", app.ViewHandler)
+		case "GET":
+			app.Router.GET("/v/:entity/:viewid", app.ViewHandler)
+		default:
+			app.Router.GET("/v/:entity/:viewid", app.ViewHandler)
+		}
+	}
 	app.Router.POST("/event/:entity", HTTPEventHandler)
 	app.Router.GET("/docs", DocHandler)
 	app.Router.GET("/entity/:entity/:id", EntityHandler)
 	app.Router.POST("/auth", AuthHandler)
 	app.Router.POST("/session/renew", AuthRenewHandler)
 	runningApp = app
+
 	return runningApp.Router.Run(port)
 }
 
@@ -205,9 +240,9 @@ func AuthHandler(c *gin.Context) {
 	password := c.PostForm("p")
 	t := c.PostForm("t")
 
-	e, _, err := runningApp.Entity("user", username)
+	e, _, err := runningApp.Entity(UserEntity, username)
 	if err != nil {
-		c.JSON(401, map[string]string{"error": "Failed to login:" + err.Error()})
+		c.JSON(401, map[string]string{"error": ".Failed to login:" + err.Error()})
 		return
 	}
 	e.Decode(&u)
@@ -330,7 +365,7 @@ func EntityHandler(c *gin.Context) {
 		// I should auth read also
 		cl, err = runningApp.authRead(e, c)
 		if err != nil {
-			c.JSON(401, map[string]string{"error": err.Error()})
+			c.JSON(401, map[string]string{"error1": err.Error()})
 			return
 		}
 
@@ -471,6 +506,59 @@ func (app *App) auth(event string, c *gin.Context) (*SessionClaims, error) {
 			return nil, errors.New("Invalid Role, " + claims.Role)
 		}
 
+		return claims, err
+	} else {
+		return nil, err
+	}
+
+}
+
+func (app *App) ViewHandler(c *gin.Context) {
+	e := c.Param("entity")
+	vid := c.Param("viewid")
+
+	view, exist := app.Views[vid]
+	if !exist {
+		c.JSON(404, map[string]string{"error": "view not found"})
+		return
+	}
+
+	cl, err := app.getSession(c)
+	if err != nil {
+		c.JSON(401, map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	response, err := view.Generate(e, cl.Role, cl.Username, c)
+	if err != nil {
+		c.JSON(400, map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, response)
+}
+
+func (app *App) getSession(c *gin.Context) (*SessionClaims, error) {
+	var err error
+	t := ""
+	// Read cookie
+	cookieVal, err := c.Cookie(CookieName)
+	if cookieVal == "" {
+		t = c.Request.Header.Get(SessionHeader)
+	} else {
+		t = cookieVal
+	}
+
+	// create session claimsfrom token
+	token, err := jwt.ParseWithClaims(t, &SessionClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(app.Secret), nil
+	})
+
+	if token == nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*SessionClaims); ok && token.Valid {
 		return claims, err
 	} else {
 		return nil, err

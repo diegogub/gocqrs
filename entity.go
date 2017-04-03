@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"reflect"
 	"strings"
 )
 
@@ -28,6 +29,8 @@ type EntityConf struct {
 	EventHandlers map[string]EventHandler `json:"handlers"`
 
 	Validators map[string]Validator `json:"validators"`
+	BaseStruct interface{}          `json:"base,omitempty"`
+	BaseSeted  bool
 
 	Auther    ReadAuther
 	ReadRoles []string `json:"roles,omitempty"`
@@ -64,6 +67,21 @@ func (e *EntityConf) AddValidator(v ...Validator) error {
 		}
 	}
 	return err
+}
+
+func (e *EntityConf) SetBaseStruct(i interface{}) {
+	t := reflect.TypeOf(i)
+	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Interface {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+	default:
+		panic("Invalid type to be base struct")
+	}
+
+	e.BaseStruct = i
+	e.BaseSeted = true
 }
 
 func (e *EntityConf) AddEventHandler(eh ...EventHandler) error {
@@ -109,6 +127,35 @@ func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error)
 	entity.ID = id
 
 	return &entity, err
+}
+
+func (ev EntityConf) checkBase(data map[string]interface{}) error {
+	i := ev.BaseStruct
+	t := reflect.TypeOf(i)
+	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Interface {
+		t = t.Elem()
+	}
+
+	n := t.NumField()
+	for k, _ := range data {
+		has := false
+		for f := 0; f < n; f++ {
+			v, hasTag := t.Field(f).Tag.Lookup("json")
+			if !hasTag {
+				v = t.Field(f).Name
+			}
+			if v == k {
+				has = true
+				break
+			}
+		}
+
+		if !has {
+			return errors.New("Invalid field, do not exist in base struct: " + k)
+		}
+	}
+
+	return nil
 }
 
 type Entity struct {
