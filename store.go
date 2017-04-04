@@ -15,6 +15,7 @@ type EventStore interface {
 	Store(e Eventer, opt StoreOptions) (uint64, error)
 	Range(streamid string) (chan Eventer, uint64)
 	Version(streamid string) (uint64, error)
+	Scan(streamid string, from, to uint64) chan Event
 }
 
 // Storing event options

@@ -62,6 +62,20 @@ func (es EventoStore) Range(streamid string) (chan gocqrs.Eventer, uint64) {
 	return ch, lastVersion
 }
 
+func (es EventoStore) Scan(streamid string, from, to uint64) chan gocqrs.Event {
+	ch := make(chan gocqrs.Event, 20)
+	events := es.client.RangeStream(streamid, from, to)
+	go func() {
+		for e := range events {
+			ev := gocqrs.NewEvent(e.GetId(), e.GetType(), e.GetData())
+			ev.EventVersion = e.Version
+			ch <- *ev
+		}
+		close(ch)
+	}()
+	return ch
+}
+
 func (es EventoStore) Version(streamid string) (uint64, error) {
 	return es.client.Version(streamid)
 }

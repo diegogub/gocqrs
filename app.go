@@ -205,6 +205,7 @@ func (app *App) Run(port string) error {
 	log.Println("-----------------------------------")
 	app.Router.POST("/event/:entity", HTTPEventHandler)
 	app.Router.GET("/docs", DocHandler)
+	app.Router.GET("/docs/:entity", EventsDocHandler)
 	app.Router.GET("/entity/:entity/:id", EntityHandler)
 	app.Router.POST("/auth", AuthHandler)
 	app.Router.POST("/session/renew", AuthRenewHandler)
@@ -338,6 +339,11 @@ func HTTPEventHandler(c *gin.Context) {
 
 func DocHandler(c *gin.Context) {
 	c.JSON(200, GenerateDocs(runningApp))
+}
+
+func EventsDocHandler(c *gin.Context) {
+	e := c.Param("entity")
+	c.JSON(200, GenerateDocs(runningApp).GetEvents(e))
 }
 
 func EntityHandler(c *gin.Context) {
