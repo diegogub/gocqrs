@@ -45,7 +45,9 @@ type App struct {
 
 	Entities map[string]*EntityConf `json:"entities"`
 	Store    EventStore             `json:"-"`
-	Router   *gin.Engine
+
+	// Gin router
+	Router *gin.Engine
 
 	Sessions Sessioner `json:"-"`
 	// turn off auth service check
@@ -55,9 +57,6 @@ type App struct {
 	sduration       time.Duration
 	Domain          string   `json:"sessionDomain"`
 	LoginReferers   []string `json:"loginReferers"`
-
-	// View
-	Views map[string]Viewer
 }
 
 func NewApp(name string, store EventStore) *App {
@@ -204,19 +203,6 @@ func (app *App) Run(port string) error {
 	log.Println("-----------------------------------", "\n")
 	log.Println("Correlation stream: ", app.MainLog)
 	log.Println("-----------------------------------")
-	// Add views
-	for _, v := range app.Views {
-		switch v.Verb() {
-		case "POST":
-			app.Router.POST("/v/:entity/:viewid", app.ViewHandler)
-		case "PUT":
-			app.Router.PUT("/v/:entity/:viewid", app.ViewHandler)
-		case "GET":
-			app.Router.GET("/v/:entity/:viewid", app.ViewHandler)
-		default:
-			app.Router.GET("/v/:entity/:viewid", app.ViewHandler)
-		}
-	}
 	app.Router.POST("/event/:entity", HTTPEventHandler)
 	app.Router.GET("/docs", DocHandler)
 	app.Router.GET("/entity/:entity/:id", EntityHandler)
@@ -511,31 +497,6 @@ func (app *App) auth(event string, c *gin.Context) (*SessionClaims, error) {
 		return nil, err
 	}
 
-}
-
-func (app *App) ViewHandler(c *gin.Context) {
-	e := c.Param("entity")
-	vid := c.Param("viewid")
-
-	view, exist := app.Views[vid]
-	if !exist {
-		c.JSON(404, map[string]string{"error": "view not found"})
-		return
-	}
-
-	cl, err := app.getSession(c)
-	if err != nil {
-		c.JSON(401, map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	response, err := view.Generate(e, cl.Role, cl.Username, c)
-	if err != nil {
-		c.JSON(400, map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, response)
 }
 
 func (app *App) getSession(c *gin.Context) (*SessionClaims, error) {
