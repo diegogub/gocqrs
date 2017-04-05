@@ -108,7 +108,7 @@ func (v *View) Run(action string, params map[string]string, dev bool) error {
 				err := v.V.Apply(e)
 				if err != nil {
 					log.Println(err)
-					log.Println("Failed to apply event :", e)
+					log.Fatal("Failed to apply event :", e)
 				}
 			}
 		}
