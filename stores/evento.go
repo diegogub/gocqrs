@@ -2,8 +2,10 @@ package stores
 
 import (
 	es "bitbucket.org/dgub/evento/api"
+	dom "bitbucket.org/dgub/evento/dom"
 	"github.com/diegogub/gocqrs"
 	"log"
+	"strings"
 )
 
 type EventoStore struct {
@@ -67,9 +69,8 @@ func (es EventoStore) Scan(streamid string, from, to uint64) chan gocqrs.Event {
 	events := es.client.RangeStream(streamid, from, to)
 	go func() {
 		for e := range events {
-			ev := gocqrs.NewEvent(e.GetId(), e.GetType(), e.GetData())
-			ev.EventVersion = e.Version
-			ch <- *ev
+			ev := NewEvent(e)
+			ch <- ev
 		}
 		close(ch)
 	}()
@@ -78,4 +79,20 @@ func (es EventoStore) Scan(streamid string, from, to uint64) chan gocqrs.Event {
 
 func (es EventoStore) Version(streamid string) (uint64, error) {
 	return es.client.Version(streamid)
+}
+
+func NewEvent(e dom.Event) gocqrs.Event {
+	ev := gocqrs.NewEvent(e.GetId(), e.GetType(), e.GetData())
+	ev.EventStream = e.StreamId
+	ev.EventVersion = e.Version
+
+	var parts []string
+	if e.LinkStream != "" {
+		parts = strings.Split(e.LinkStream, "-")
+	} else {
+		parts = strings.Split(e.StreamId, "-")
+	}
+	ev.Entity = parts[0]
+	ev.EntityID = parts[1]
+	return *ev
 }

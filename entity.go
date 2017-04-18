@@ -6,6 +6,7 @@ import (
 	"log"
 	"reflect"
 	"strings"
+	"time"
 )
 
 const (
@@ -34,6 +35,11 @@ type EntityConf struct {
 
 	Auther    ReadAuther
 	ReadRoles []string `json:"roles,omitempty"`
+}
+
+type BasicEntity struct {
+	Created time.Time `json:"created"`
+	Updated time.Time `json:"updated"`
 }
 
 type EntityReference struct {
@@ -100,10 +106,12 @@ func (e *EntityConf) AddEventHandler(eh ...EventHandler) error {
 	return err
 }
 
-func (e *EntityConf) AddCRUD() *EntityConf {
+func (e *EntityConf) AddCRUD(checkVersion bool) *EntityConf {
 	e.CRUD = true
 	// TODO add basic CRUD
 	ch := NewCRUDHandler(e.Name)
+	ch.CheckVersion = checkVersion
+
 	e.AddEventHandler(ch)
 	return e
 }

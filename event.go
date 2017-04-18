@@ -18,18 +18,19 @@ type Eventer interface {
 
 type BaseEvent struct {
 	EventID        string    `json:"eid"`
-	EventTimestamp time.Time `json:"ets"`
-	EventType      string    `json:"ety"`
-	EventVersion   uint64    `json:"eve"`
+	EventTimestamp time.Time `json:"timestamp"`
+	EventStream    string    `json:"stream,omitempty"`
+	EventType      string    `json:"type"`
+	EventVersion   uint64    `json:"version"`
 }
 
 type Event struct {
 	BaseEvent
-	Entity            string                 `json:"entity"`
-	CorrelationStream string                 `json:"cid"`
-	EntityID          string                 `json:"eid"`
-	StreamPrefix      string                 `json:"sprefix"`
-	EventData         map[string]interface{} `json:"ed"`
+	Entity            string                 `json:"ent,omitepty"`
+	CorrelationStream string                 `json:"cid,omitempty"`
+	EntityID          string                 `json:"id,omitempty"`
+	StreamPrefix      string                 `json:"streamPre,omitempty"`
+	EventData         map[string]interface{} `json:"data,omitempty"`
 }
 
 func NewEvent(id, t string, data map[string]interface{}) *Event {
@@ -86,4 +87,9 @@ func DecodeEvent(e Eventer, i interface{}) error {
 	}
 
 	return err
+}
+
+func (event *Event) String() string {
+	b, _ := json.Marshal(event)
+	return string(b)
 }

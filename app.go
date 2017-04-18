@@ -88,7 +88,7 @@ func (app *App) Auth(s Sessioner, evh ...EventHandler) {
 	app.Sessions = s
 
 	userEntity := NewEntityConf(UserEntity)
-	userEntity.AddCRUD()
+	userEntity.AddCRUD(false)
 
 	for _, h := range evh {
 		userEntity.AddEventHandler(h)
@@ -164,6 +164,7 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 	if err != nil {
 		return "", 0, err
 	}
+	log.Println("-->", entity)
 
 	// check references
 	for _, r := range econf.EntityReferences {
@@ -177,7 +178,7 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 				return "", 0, err
 			}
 		case nil:
-			if r.Null {
+			if !r.Null {
 				return "", 0, errors.New("Invalid reference type, should be string")
 			}
 		default:

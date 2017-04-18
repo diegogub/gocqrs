@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"time"
 )
 
 const (
@@ -23,7 +24,8 @@ var (
 )
 
 type CRUDHandler struct {
-	EntityName string `json:"entityName"`
+	EntityName   string `json:"entityName"`
+	CheckVersion bool   `json:"checkVersion"`
 }
 
 func NewCRUDHandler(name string) CRUDHandler {
@@ -42,6 +44,10 @@ func (ch CRUDHandler) Handle(id string, ev Eventer, en *Entity, replay bool) (St
 	var opt StoreOptions
 	var err error
 
+	if ch.CheckVersion {
+		opt.LockVersion = ev.GetVersion() - 1
+	}
+
 	switch ev.GetType() {
 	case ch.CreateEvent():
 		if en.Deleted {
@@ -49,12 +55,18 @@ func (ch CRUDHandler) Handle(id string, ev Eventer, en *Entity, replay bool) (St
 		}
 		en.Version = 0
 		en.Data = ev.GetData()
+		if !replay {
+			ev.SetData("created", time.Now().UTC())
+		}
 		opt.Create = true
 	case ch.UpdateEvent():
 		if en.Deleted {
 			return opt, EntityDeleted
 		}
 		data := ev.GetData()
+		if !replay {
+			ev.SetData("updated", time.Now().UTC())
+		}
 		for k, d := range data {
 			en.Data[k] = d
 		}
