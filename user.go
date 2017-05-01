@@ -2,8 +2,8 @@ package gocqrs
 
 import (
 	"errors"
+	"github.com/diegogub/lib"
 	"golang.org/x/crypto/bcrypt"
-	"log"
 	"time"
 )
 
@@ -27,10 +27,12 @@ type UserEventHandler struct {
 }
 
 const UserCreatedEvent = "UserCreated"
+const UserTokenUpdated = "UserTokenUpdated"
 
 func (uh UserEventHandler) EventName() []string {
 	return []string{
 		UserCreatedEvent,
+		UserTokenUpdated,
 	}
 }
 
@@ -51,14 +53,27 @@ func (uh UserEventHandler) Handle(id string, event Eventer, entity *Entity, repl
 				return opt, err
 			}
 			u.Created = time.Now().UTC()
+			u.GenerateToken()
 			err = u.Valid()
 			if err != nil {
 				return opt, err
 			}
+			event.SetData("token", u.Token)
+			event.SetData("password", u.Password)
 		}
 
-		event.SetData("password", u.Password)
 		entity.Data = ToMap(u)
+
+	case UserTokenUpdated:
+		if !replay {
+			var u User
+			u.GenerateToken()
+			token := u.Token
+			event.SetData("token", token)
+		} else {
+			data := event.GetData()
+			entity.Data["token"] = data["token"]
+		}
 	}
 
 	return opt, err
@@ -91,10 +106,8 @@ func (u *User) Encrypt() error {
 		return errors.New("Invalid password")
 	}
 	b, err := bcrypt.GenerateFromPassword([]byte(u.Password), 11)
-	log.Println(err)
 
 	u.Password = string(b)
-	log.Println(u.Password)
 	return err
 }
 
@@ -107,4 +120,9 @@ func (u *User) CheckToken(token string) error {
 		return nil
 	}
 	return errors.New("Invalid token")
+}
+
+func (u *User) GenerateToken() {
+	t := lib.NewLongId("t") + lib.NewLongId("d") + lib.NewLongId("4")
+	u.Token = t
 }

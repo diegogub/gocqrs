@@ -161,6 +161,15 @@ func (ev EntityConf) checkBase(data map[string]interface{}) error {
 		if !has {
 			return errors.New("Invalid field, do not exist in base struct: " + k)
 		}
+
+		// check json decode
+		b, _ := json.Marshal(data)
+		log.Println(string(b), i)
+		err := json.Unmarshal(b, &i)
+		log.Println("------------>", err, i)
+		if err != nil {
+			return errors.New("Invalid type:" + err.Error())
+		}
 	}
 
 	return nil

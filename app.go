@@ -204,6 +204,7 @@ func (app *App) Run(port string) error {
 	log.Println("-----------------------------------", "\n")
 	log.Println("Correlation stream: ", app.MainLog)
 	log.Println("-----------------------------------")
+	app.Router.GET("/up", UpHandler)
 	app.Router.POST("/event/:entity", HTTPEventHandler)
 	app.Router.GET("/docs", DocHandler)
 	app.Router.GET("/docs/:entity", EventsDocHandler)
@@ -213,6 +214,10 @@ func (app *App) Run(port string) error {
 	runningApp = app
 
 	return runningApp.Router.Run(port)
+}
+
+func UpHandler(c *gin.Context) {
+	c.AbortWithStatus(200)
 }
 
 type SessionClaims struct {
