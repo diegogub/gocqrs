@@ -40,7 +40,7 @@ func NewCRUDHandler(name string) CRUDHandler {
 }
 
 // Handler CRUD events
-func (ch CRUDHandler) Handle(id string, ev Eventer, en *Entity, replay bool) (StoreOptions, error) {
+func (ch CRUDHandler) Handle(id string, userid, role string, ev Eventer, en *Entity, replay bool) (StoreOptions, error) {
 	var opt StoreOptions
 	var err error
 
@@ -56,6 +56,7 @@ func (ch CRUDHandler) Handle(id string, ev Eventer, en *Entity, replay bool) (St
 		en.Version = 0
 		en.Data = ev.GetData()
 		if !replay {
+			ev.SetData("createdBy", userid)
 			ev.SetData("created", time.Now().UTC())
 		}
 		opt.Create = true
@@ -65,6 +66,7 @@ func (ch CRUDHandler) Handle(id string, ev Eventer, en *Entity, replay bool) (St
 		}
 		data := ev.GetData()
 		if !replay {
+			ev.SetData("updatedBy", userid)
 			ev.SetData("updated", time.Now().UTC())
 		}
 		for k, d := range data {

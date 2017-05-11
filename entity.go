@@ -38,8 +38,11 @@ type EntityConf struct {
 }
 
 type BasicEntity struct {
-	Created time.Time `json:"created"`
-	Updated time.Time `json:"updated"`
+	CreatedBy string    `json:"createBy"`
+	Created   time.Time `json:"created"`
+
+	UpdatedBy string    `json:"createBy"`
+	Updated   time.Time `json:"updated"`
 }
 
 type EntityReference struct {
@@ -127,7 +130,8 @@ func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error)
 		}
 
 		if e.GetVersion() == entity.Version+1 || e.GetVersion() == 0 {
-			_, err = eventHandler.Handle(id, e, &entity, true)
+			// replay do not have userid or role
+			_, err = eventHandler.Handle(id, "", "", e, &entity, true)
 		} else {
 			return &entity, errors.New("Failed to aggregate entity " + id + " , unorder events")
 		}

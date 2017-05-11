@@ -36,7 +36,7 @@ func (uh UserEventHandler) EventName() []string {
 	}
 }
 
-func (uh UserEventHandler) Handle(id string, event Eventer, entity *Entity, replay bool) (StoreOptions, error) {
+func (uh UserEventHandler) Handle(id, userid, role string, event Eventer, entity *Entity, replay bool) (StoreOptions, error) {
 	var opt StoreOptions
 	var err error
 	switch event.GetType() {
@@ -69,6 +69,7 @@ func (uh UserEventHandler) Handle(id string, event Eventer, entity *Entity, repl
 			var u User
 			u.GenerateToken()
 			token := u.Token
+			event.ClearData()
 			event.SetData("token", token)
 		} else {
 			data := event.GetData()

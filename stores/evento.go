@@ -3,6 +3,7 @@ package stores
 import (
 	es "bitbucket.org/dgub/evento/api"
 	dom "bitbucket.org/dgub/evento/dom"
+	"errors"
 	"github.com/diegogub/gocqrs"
 	"log"
 	"strings"

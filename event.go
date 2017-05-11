@@ -13,6 +13,7 @@ type Eventer interface {
 	GetType() string
 	GetData() map[string]interface{}
 	SetData(k string, i interface{})
+	ClearData()
 	GetLinks() []string
 }
 
@@ -73,6 +74,10 @@ func (e *Event) GetVersion() uint64 {
 
 func (e *Event) SetData(k string, i interface{}) {
 	e.EventData[k] = i
+}
+
+func (e *Event) ClearData() {
+	e.EventData = make(map[string]interface{})
 }
 
 func DecodeEvent(e Eventer, i interface{}) error {

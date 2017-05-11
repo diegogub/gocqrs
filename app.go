@@ -124,7 +124,7 @@ func (app *App) RegisterEntity(e *EntityConf) *App {
 	return app
 }
 
-func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint64) (string, uint64, error) {
+func (app *App) HandleEvent(entityName, id, userid, role string, ev Eventer, versionLock uint64) (string, uint64, error) {
 	var err error
 	app.lock.Lock()
 	defer app.lock.Unlock()
@@ -160,7 +160,7 @@ func (app *App) HandleEvent(entityName, id string, ev Eventer, versionLock uint6
 	}
 
 	// handler event
-	opt, err := h.Handle(id, ev, entity, false)
+	opt, err := h.Handle(id, userid, role, ev, entity, false)
 	if err != nil {
 		return "", 0, err
 	}
@@ -292,6 +292,8 @@ func AuthRenewHandler(c *gin.Context) {
 
 func HTTPEventHandler(c *gin.Context) {
 	var err error
+	var userid string
+	var role string
 	e := c.Param("entity")
 	eType := c.Request.Header.Get(EventTypeHeader)
 
@@ -299,7 +301,9 @@ func HTTPEventHandler(c *gin.Context) {
 
 	// Auth event
 	if !runningApp.AuthOff {
-		_, err = runningApp.auth(eType, c)
+		claims, err := runningApp.auth(eType, c)
+		role = claims.Role
+		role = claims.Username
 		log.Println("--->", err)
 		if err != nil {
 			c.JSON(401, map[string]interface{}{"error": err.Error()})
@@ -333,7 +337,7 @@ func HTTPEventHandler(c *gin.Context) {
 	event.CorrelationStream = runningApp.MainLog
 
 	// create event
-	id, version, err := runningApp.HandleEvent(event.Entity, event.EntityID, event, v)
+	id, version, err := runningApp.HandleEvent(event.Entity, userid, role, event.EntityID, event, v)
 	if err != nil {
 		c.JSON(400, map[string]interface{}{"error": err.Error()})
 		return
