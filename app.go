@@ -164,7 +164,6 @@ func (app *App) HandleEvent(entityName, id, userid, role string, ev Eventer, ver
 	if err != nil {
 		return "", 0, err
 	}
-	log.Println("-->", entity)
 
 	// check references
 	for _, r := range econf.EntityReferences {
@@ -302,9 +301,8 @@ func HTTPEventHandler(c *gin.Context) {
 	// Auth event
 	if !runningApp.AuthOff {
 		claims, err := runningApp.auth(eType, c)
+		userid = claims.Username
 		role = claims.Role
-		role = claims.Username
-		log.Println("--->", err)
 		if err != nil {
 			c.JSON(401, map[string]interface{}{"error": err.Error()})
 			return
@@ -337,7 +335,7 @@ func HTTPEventHandler(c *gin.Context) {
 	event.CorrelationStream = runningApp.MainLog
 
 	// create event
-	id, version, err := runningApp.HandleEvent(event.Entity, userid, role, event.EntityID, event, v)
+	id, version, err := runningApp.HandleEvent(event.Entity, event.EntityID, userid, role, event, v)
 	if err != nil {
 		c.JSON(400, map[string]interface{}{"error": err.Error()})
 		return
