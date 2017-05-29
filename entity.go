@@ -39,10 +39,10 @@ type EntityConf struct {
 
 type BasicEntity struct {
 	CreatedBy string    `json:"createBy"`
-	Created   time.Time `json:"created"`
+	Created   time.Time `json:"created,omitempty"`
 
 	UpdatedBy string    `json:"createBy"`
-	Updated   time.Time `json:"updated"`
+	Updated   time.Time `json:"updated,omitempty"`
 }
 
 type EntityReference struct {
@@ -170,7 +170,6 @@ func (ev EntityConf) checkBase(data map[string]interface{}) error {
 		b, _ := json.Marshal(data)
 		log.Println(string(b), i)
 		err := json.Unmarshal(b, &i)
-		log.Println("------------>", err, i)
 		if err != nil {
 			return errors.New("Invalid type:" + err.Error())
 		}
@@ -181,6 +180,7 @@ func (ev EntityConf) checkBase(data map[string]interface{}) error {
 
 type Entity struct {
 	ID      string                 `json:"id"`
+	Group   string                 `json:"group"`
 	Version uint64                 `json:"version"`
 	Deleted bool                   `json:"deleted"`
 	Data    map[string]interface{} `json:"data"`

@@ -25,6 +25,7 @@ const (
 	CreateEventHeader   = "X-Create"
 	EntityHeader        = "X-Entity"
 	EventIDHeader       = "X-EventID"
+	EntityGroupHeader   = "X-Group"
 	SessionHeader       = "X-Session"
 	CookieName          = "san"
 )
@@ -96,6 +97,11 @@ func (app *App) Auth(s Sessioner, evh ...EventHandler) {
 	userEntity.AddEventHandler(UserEventHandler{})
 	userEntity.SetBaseStruct(User{})
 
+	groupEntity := NewEntityConf(GroupEntity)
+	groupEntity.AddCRUD(false)
+	groupEntity.SetBaseStruct(Group{})
+
+	app.RegisterEntity(groupEntity)
 	app.RegisterEntity(userEntity)
 }
 
@@ -175,6 +181,13 @@ func (app *App) HandleEvent(entityName, id, userid, role string, ev Eventer, ver
 			err = app.CheckReference(r.Entity, r.Key, v, r.Null)
 			if err != nil {
 				return "", 0, err
+			}
+		case []string:
+			for _, v := range value.([]string) {
+				err = app.CheckReference(r.Entity, r.Key, v, r.Null)
+				if err != nil {
+					return "", 0, err
+				}
 			}
 		case nil:
 			if !r.Null {
@@ -298,8 +311,19 @@ func HTTPEventHandler(c *gin.Context) {
 
 	data := make(map[string]interface{})
 
+	group := c.Request.Header.Get(EntityGroupHeader)
+
 	// Auth event
 	if !runningApp.AuthOff {
+		if e != "group" {
+			// Check if group exist
+			err = runningApp.CheckReference(GroupEntity, "", group, false)
+			if err != nil {
+				c.JSON(401, map[string]interface{}{"error": "Invalid group: " + group})
+				return
+			}
+		}
+
 		claims, err := runningApp.auth(eType, c)
 		userid = claims.Username
 		role = claims.Role
@@ -333,6 +357,7 @@ func HTTPEventHandler(c *gin.Context) {
 	event.Entity = e
 	event.EntityID = enID
 	event.CorrelationStream = runningApp.MainLog
+	event.Group = group
 
 	// create event
 	id, version, err := runningApp.HandleEvent(event.Entity, event.EntityID, userid, role, event, v)

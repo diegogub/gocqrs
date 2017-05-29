@@ -106,6 +106,7 @@ func (v *View) Run(action string, params map[string]string, dev bool) error {
 
 			for e := range events {
 				err := v.V.Apply(e)
+				log.Println("Applying..", e.EventVersion)
 				if err != nil {
 					log.Println(err)
 					log.Fatal("Failed to apply event :", e)

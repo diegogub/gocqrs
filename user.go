@@ -20,7 +20,8 @@ type User struct {
 	ActiveToken bool   `json:"activeToken"`
 	Token       string `json:"token"`
 
-	Data map[string]interface{} `json:"data"`
+	Groups []string               `json:"groups"`
+	Data   map[string]interface{} `json:"data"`
 }
 
 type UserEventHandler struct {

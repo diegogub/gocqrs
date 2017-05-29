@@ -27,6 +27,7 @@ type BaseEvent struct {
 
 type Event struct {
 	BaseEvent
+	Group             string                 `json:"group,omitempty"`
 	Entity            string                 `json:"ent,omitepty"`
 	CorrelationStream string                 `json:"cid,omitempty"`
 	EntityID          string                 `json:"id,omitempty"`
@@ -61,7 +62,11 @@ func (e *Event) GetLinks() []string {
 }
 
 func (e *Event) GetStream() string {
-	return e.Entity + "-" + e.EntityID
+	if e.Group == "" {
+		return e.Entity + "-" + e.EntityID
+	} else {
+		return e.Group + "-" + e.Entity + "-" + e.EntityID
+	}
 }
 
 func (e *Event) GetType() string {
