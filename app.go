@@ -130,7 +130,7 @@ func (app *App) RegisterEntity(e *EntityConf) *App {
 	return app
 }
 
-func (app *App) HandleEvent(entityName, id, userid, role string, ev Eventer, versionLock uint64) (string, uint64, error) {
+func (app *App) HandleEvent(groupName, entityName, id, userid, role string, ev Eventer, versionLock uint64) (string, uint64, error) {
 	var err error
 	app.lock.Lock()
 	defer app.lock.Unlock()
@@ -171,20 +171,20 @@ func (app *App) HandleEvent(entityName, id, userid, role string, ev Eventer, ver
 		return "", 0, err
 	}
 
-	// check references
+	// check if references exist
 	for _, r := range econf.EntityReferences {
 		var v string
 		value := entity.Data[r.Key]
 		switch value.(type) {
 		case string:
 			v = value.(string)
-			err = app.CheckReference(r.Entity, r.Key, v, r.Null)
+			err = app.CheckReference(groupName, r.Entity, r.Key, v, r.Null)
 			if err != nil {
 				return "", 0, err
 			}
 		case []string:
 			for _, v := range value.([]string) {
-				err = app.CheckReference(r.Entity, r.Key, v, r.Null)
+				err = app.CheckReference(groupName, r.Entity, r.Key, v, r.Null)
 				if err != nil {
 					return "", 0, err
 				}
@@ -306,31 +306,37 @@ func HTTPEventHandler(c *gin.Context) {
 	var err error
 	var userid string
 	var role string
-	e := c.Param("entity")
-	eType := c.Request.Header.Get(EventTypeHeader)
+
+	entityName := c.Param("entity")
+	eventType := c.Request.Header.Get(EventTypeHeader)
+	groupName := c.Request.Header.Get(EntityGroupHeader)
+	eventVersion := c.Request.Header.Get(EntityVersionHeader)
+	eventID := c.Request.Header.Get(EventIDHeader)
+	entityID := c.Request.Header.Get(EntityHeader)
+	if entityID == "" {
+		return errors.New("Invalid entityid")
+	}
 
 	data := make(map[string]interface{})
 
-	group := c.Request.Header.Get(EntityGroupHeader)
-
 	// Auth event
 	if !runningApp.AuthOff {
-		if e != "group" {
+		if entityName != "groups" {
 			// Check if group exist
-			err = runningApp.CheckReference(GroupEntity, "", group, false)
+			err = runningApp.CheckReference("", GroupEntity, "", groupName, false)
 			if err != nil {
-				c.JSON(401, map[string]interface{}{"error": "Invalid group: " + group})
+				c.JSON(401, map[string]interface{}{"error": "Invalid group: " + groupName})
 				return
 			}
 		}
 
-		claims, err := runningApp.auth(eType, c)
-		userid = claims.Username
-		role = claims.Role
+		claims, err := runningApp.auth(eventType, c)
 		if err != nil {
 			c.JSON(401, map[string]interface{}{"error": err.Error()})
 			return
 		}
+		userid = claims.Username
+		role = claims.Role
 	}
 
 	err = c.BindJSON(&data)
@@ -339,34 +345,25 @@ func HTTPEventHandler(c *gin.Context) {
 		return
 	}
 
-	eVersion := c.Request.Header.Get(EntityVersionHeader)
-	v, _ := strconv.ParseUint(eVersion, 10, 64)
-
-	// get event type
-
-	// get entity id
-	enID := c.Request.Header.Get(EntityHeader)
-	if enID == "" {
-		enID = lib.NewShortId("")
-	}
+	versionLock, _ := strconv.ParseUint(eventVersion, 10, 64)
 
 	// get event id
-	eID := c.Request.Header.Get(EventIDHeader)
 
-	event := NewEvent(eID, eType, data)
-	event.Entity = e
-	event.EntityID = enID
+	event := NewEvent(eventID, eventType, data)
+	event.Entity = entityName
+	event.EventID = eventID
+	event.EntityID = entityID
 	event.CorrelationStream = runningApp.MainLog
-	event.Group = group
+	event.Group = groupName
 
 	// create event
-	id, version, err := runningApp.HandleEvent(event.Entity, event.EntityID, userid, role, event, v)
+	id, version, err := runningApp.HandleEvent(groupName, event.Entity, event.EntityID, userid, role, event, versionLock)
 	if err != nil {
 		c.JSON(400, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	c.JSON(201, map[string]interface{}{"entity": e, "entity-id": enID, "version": version, "event-id": id})
+	c.JSON(201, map[string]interface{}{"entity": entityName, "entity-id": id, "version": version})
 	return
 }
 
@@ -455,12 +452,17 @@ func (app *App) authRole(role, eventType string) bool {
 	return allowed
 }
 
-func (app *App) CheckReference(e, k, value string, null bool) error {
+func (app *App) CheckReference(group, e, k, value string, null bool) error {
 	if value == "" && null {
 		return nil
 	}
 
-	stream := e + "-" + value
+	var stream string
+	if group != "" {
+		stream = group + "-" + e + "-" + value
+	} else {
+		stream = e + "-" + value
+	}
 	_, err := app.Store.Version(stream)
 	if err != nil {
 		return errors.New(InvalidReferenceError.Error() + ": " + k + " - " + value + " - " + stream + " - " + err.Error())

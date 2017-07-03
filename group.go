@@ -8,6 +8,6 @@ const (
 
 type Group struct {
 	BasicEntity
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   string            `json:"id"`
+	Data map[string]string `json:"data"`
 }
