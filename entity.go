@@ -38,6 +38,7 @@ type EntityConf struct {
 }
 
 type BasicEntity struct {
+	AccountID string    `json:"accID"`
 	CreatedBy string    `json:"createBy"`
 	Created   time.Time `json:"created,omitempty"`
 
@@ -131,7 +132,7 @@ func (ec *EntityConf) Aggregate(id string, events chan Eventer) (*Entity, error)
 
 		if e.GetVersion() == entity.Version+1 || e.GetVersion() == 0 {
 			// replay do not have userid or role
-			_, err = eventHandler.Handle(id, "", "", e, &entity, true)
+			_, err = eventHandler.Handle(id, "", "", "", e, &entity, true)
 		} else {
 			return &entity, errors.New("Failed to aggregate entity " + id + " , unorder events")
 		}

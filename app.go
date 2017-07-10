@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	InvalidEntityError    = errors.New("Invalid entity")
+	InvalidEntityError    = errors.New("Invalid entity in command")
 	InvalidReferenceError = errors.New("Invalid reference")
 	BaseUnseted           = errors.New("Basestruct not set, should be setted")
 )
@@ -27,6 +27,8 @@ const (
 	EventIDHeader       = "X-EventID"
 	EntityGroupHeader   = "X-Group"
 	SessionHeader       = "X-Session"
+	AccountHeader       = "X-Account"
+	UserHeader          = "X-User"
 	CookieName          = "san"
 )
 
@@ -52,6 +54,7 @@ type App struct {
 
 	Sessions Sessioner `json:"-"`
 	// turn off auth service check
+	FirstRun        bool   `json:"firtRun"`
 	AuthOff         bool   `json:"authOff"`
 	Secret          string `json:"-"`
 	SessionValidity string `json:"sessionValidity"`
@@ -72,7 +75,7 @@ func NewApp(name string, store EventStore) *App {
 	app.Store = store
 	app.MainLog = strings.Replace(strings.ToLower(app.Name), " ", "_", -1) + "_log"
 	// set default session validity
-	app.SessionValidity = "30m"
+	app.SessionValidity = "60m"
 	d, _ := time.ParseDuration(app.SessionValidity)
 	app.sduration = d
 	return &app
@@ -97,11 +100,12 @@ func (app *App) Auth(s Sessioner, evh ...EventHandler) {
 	userEntity.AddEventHandler(UserEventHandler{})
 	userEntity.SetBaseStruct(User{})
 
-	groupEntity := NewEntityConf(GroupEntity)
-	groupEntity.AddCRUD(false)
-	groupEntity.SetBaseStruct(Group{})
+	accEntity := NewEntityConf(AccEntity)
+	accEntity.SetBaseStruct(Account{})
+	accEntity.AddCRUD(true)
+	accEntity.Reference("users", "admid", false)
 
-	app.RegisterEntity(groupEntity)
+	app.RegisterEntity(accEntity)
 	app.RegisterEntity(userEntity)
 }
 
@@ -130,7 +134,7 @@ func (app *App) RegisterEntity(e *EntityConf) *App {
 	return app
 }
 
-func (app *App) HandleEvent(groupName, entityName, id, userid, role string, ev Eventer, versionLock uint64) (string, uint64, error) {
+func (app *App) HandleEvent(entityName, id, accid, userid, role string, ev Eventer, versionLock uint64) (string, uint64, error) {
 	var err error
 	app.lock.Lock()
 	defer app.lock.Unlock()
@@ -166,7 +170,7 @@ func (app *App) HandleEvent(groupName, entityName, id, userid, role string, ev E
 	}
 
 	// handler event
-	opt, err := h.Handle(id, userid, role, ev, entity, false)
+	opt, err := h.Handle(id, accid, userid, role, ev, entity, false)
 	if err != nil {
 		return "", 0, err
 	}
@@ -178,13 +182,13 @@ func (app *App) HandleEvent(groupName, entityName, id, userid, role string, ev E
 		switch value.(type) {
 		case string:
 			v = value.(string)
-			err = app.CheckReference(groupName, r.Entity, r.Key, v, r.Null)
+			err = app.CheckReference(r.Entity, r.Key, v, r.Null)
 			if err != nil {
 				return "", 0, err
 			}
 		case []string:
 			for _, v := range value.([]string) {
-				err = app.CheckReference(groupName, r.Entity, r.Key, v, r.Null)
+				err = app.CheckReference(r.Entity, r.Key, v, r.Null)
 				if err != nil {
 					return "", 0, err
 				}
@@ -233,8 +237,9 @@ func UpHandler(c *gin.Context) {
 }
 
 type SessionClaims struct {
-	Username string `json:"use"`
-	Role     string `json:"rol"`
+	Username  string `json:"use"`
+	Role      string `json:"rol"`
+	AccountID string `json:"accid"`
 	jwt.StandardClaims
 }
 
@@ -282,6 +287,7 @@ func AuthHandler(c *gin.Context) {
 	claims := SessionClaims{
 		u.Username,
 		u.Role,
+		u.AccountID,
 		jwt.StandardClaims{
 			IssuedAt:  time.Now().Unix(),
 			ExpiresAt: time.Now().Add(runningApp.sduration).Unix(),
@@ -306,30 +312,25 @@ func HTTPEventHandler(c *gin.Context) {
 	var err error
 	var userid string
 	var role string
+	var accid string
 
 	entityName := c.Param("entity")
 	eventType := c.Request.Header.Get(EventTypeHeader)
-	groupName := c.Request.Header.Get(EntityGroupHeader)
 	eventVersion := c.Request.Header.Get(EntityVersionHeader)
 	eventID := c.Request.Header.Get(EventIDHeader)
 	entityID := c.Request.Header.Get(EntityHeader)
 	if entityID == "" {
-		return errors.New("Invalid entityid")
+		err := errors.New("Invalid entityid")
+		if err != nil {
+			c.JSON(400, map[string]interface{}{"error": err.Error()})
+			return
+		}
 	}
 
 	data := make(map[string]interface{})
 
 	// Auth event
 	if !runningApp.AuthOff {
-		if entityName != "groups" {
-			// Check if group exist
-			err = runningApp.CheckReference("", GroupEntity, "", groupName, false)
-			if err != nil {
-				c.JSON(401, map[string]interface{}{"error": "Invalid group: " + groupName})
-				return
-			}
-		}
-
 		claims, err := runningApp.auth(eventType, c)
 		if err != nil {
 			c.JSON(401, map[string]interface{}{"error": err.Error()})
@@ -337,6 +338,36 @@ func HTTPEventHandler(c *gin.Context) {
 		}
 		userid = claims.Username
 		role = claims.Role
+		accid = claims.AccountID
+	} else {
+		userid = c.Request.Header.Get(UserHeader)
+		if userid == "" {
+			c.JSON(401, map[string]interface{}{"error": "Invalid noauth username"})
+			return
+		}
+		if !runningApp.FirstRun {
+			err = runningApp.CheckReference(UserEntity, "", userid, false)
+			if err != nil {
+				c.JSON(401, map[string]interface{}{"error": "Invalid noauth username"})
+				return
+			}
+		}
+
+		if entityName != AccEntity {
+			accid = c.Request.Header.Get(AccountHeader)
+			if accid == "" {
+				c.JSON(401, map[string]interface{}{"error": "Invalid accountid"})
+				return
+			}
+
+			if !runningApp.FirstRun {
+				err = runningApp.CheckReference(AccEntity, "", accid, false)
+				if err != nil {
+					c.JSON(401, map[string]interface{}{"error": "Invalid accoundid,does not exist"})
+					return
+				}
+			}
+		}
 	}
 
 	err = c.BindJSON(&data)
@@ -354,10 +385,9 @@ func HTTPEventHandler(c *gin.Context) {
 	event.EventID = eventID
 	event.EntityID = entityID
 	event.CorrelationStream = runningApp.MainLog
-	event.Group = groupName
 
 	// create event
-	id, version, err := runningApp.HandleEvent(groupName, event.Entity, event.EntityID, userid, role, event, versionLock)
+	id, version, err := runningApp.HandleEvent(event.Entity, event.EntityID, accid, userid, role, event, versionLock)
 	if err != nil {
 		c.JSON(400, map[string]interface{}{"error": err.Error()})
 		return
@@ -452,17 +482,13 @@ func (app *App) authRole(role, eventType string) bool {
 	return allowed
 }
 
-func (app *App) CheckReference(group, e, k, value string, null bool) error {
+func (app *App) CheckReference(e, k, value string, null bool) error {
 	if value == "" && null {
 		return nil
 	}
 
 	var stream string
-	if group != "" {
-		stream = group + "-" + e + "-" + value
-	} else {
-		stream = e + "-" + value
-	}
+	stream = e + "-" + value
 	_, err := app.Store.Version(stream)
 	if err != nil {
 		return errors.New(InvalidReferenceError.Error() + ": " + k + " - " + value + " - " + stream + " - " + err.Error())

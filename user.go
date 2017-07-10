@@ -17,6 +17,8 @@ type User struct {
 	Role     string    `json:"role"`
 	Created  time.Time `json:"created`
 
+	AccountID string `json:"accid"`
+
 	ActiveToken bool   `json:"activeToken"`
 	Token       string `json:"token"`
 
@@ -37,7 +39,7 @@ func (uh UserEventHandler) EventName() []string {
 	}
 }
 
-func (uh UserEventHandler) Handle(id, userid, role string, event Eventer, entity *Entity, replay bool) (StoreOptions, error) {
+func (uh UserEventHandler) Handle(id, accid, userid, role string, event Eventer, entity *Entity, replay bool) (StoreOptions, error) {
 	var opt StoreOptions
 	var err error
 	switch event.GetType() {
@@ -59,6 +61,7 @@ func (uh UserEventHandler) Handle(id, userid, role string, event Eventer, entity
 			if err != nil {
 				return opt, err
 			}
+			event.SetData("accid", accid)
 			event.SetData("token", u.Token)
 			event.SetData("password", u.Password)
 		}
