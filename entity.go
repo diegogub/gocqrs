@@ -33,7 +33,6 @@ type EntityConf struct {
 	BaseStruct interface{}          `json:"base,omitempty"`
 	BaseSeted  bool
 
-	Auther    ReadAuther
 	ReadRoles []string `json:"roles,omitempty"`
 }
 

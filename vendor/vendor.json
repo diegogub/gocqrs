@@ -40,6 +40,12 @@
 			"revisionTime": "2017-02-20T08:41:16Z"
 		},
 		{
+			"checksumSHA1": "2Fy1Y6Z3lRRX1891WF/+HT4XS2I=",
+			"path": "github.com/dgrijalva/jwt-go",
+			"revision": "9ed569b5d1ac936e6494082958d63a6aa4fff99a",
+			"revisionTime": "2016-11-01T19:39:35Z"
+		},
+		{
 			"checksumSHA1": "nV6DphdWYPeewPEGWwE2OokcYa4=",
 			"path": "github.com/diegogub/lib",
 			"revision": "a463992364a19189c820364d3915bf7aab0b078c",
@@ -118,6 +124,18 @@
 			"revisionTime": "2017-02-20T08:41:16Z"
 		},
 		{
+			"checksumSHA1": "vE43s37+4CJ2CDU6TlOUOYE0K9c=",
+			"path": "golang.org/x/crypto/bcrypt",
+			"revision": "f6b343c37ca80bfa8ea539da67a0b621f84fab1d",
+			"revisionTime": "2016-12-21T04:54:10Z"
+		},
+		{
+			"checksumSHA1": "JsJdKXhz87gWenMwBeejTOeNE7k=",
+			"path": "golang.org/x/crypto/blowfish",
+			"revision": "f6b343c37ca80bfa8ea539da67a0b621f84fab1d",
+			"revisionTime": "2016-12-21T04:54:10Z"
+		},
+		{
 			"checksumSHA1": "9jjO5GjLa0XF/nfWihF02RoH4qc=",
 			"path": "golang.org/x/net/context",
 			"revision": "4971afdc2f162e82d185353533d3cf16188a9f4e",
@@ -141,12 +159,6 @@
 			"path": "gopkg.in/asaskevich/govalidator.v4",
 			"revision": "7664702784775e51966f0885f5cd27435916517b",
 			"revisionTime": "2016-05-18T19:07:39Z"
-		},
-		{
-			"checksumSHA1": "hT+7DPyl8tQ96kUXW3Sr5o0Pcj0=",
-			"path": "gopkg.in/gin-gonic/gin.v1",
-			"revision": "e2212d40c62a98b388a5eb48ecbdcf88534688ba",
-			"revisionTime": "2016-12-04T22:13:08Z"
 		},
 		{
 			"checksumSHA1": "39V1idWER42Lmcmg2Uy40wMzOlo=",

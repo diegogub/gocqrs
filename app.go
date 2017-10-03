@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/diegogub/lib"
 	"gopkg.in/gin-gonic/gin.v1"
 	"log"
 	"strconv"
@@ -27,7 +26,6 @@ const (
 	EventIDHeader       = "X-EventID"
 	EntityGroupHeader   = "X-Group"
 	SessionHeader       = "X-Session"
-	AccountHeader       = "X-Account"
 	UserHeader          = "X-User"
 	CookieName          = "san"
 )
@@ -43,6 +41,10 @@ type App struct {
 	// main log stream
 	MainLog string `json:"mlog"`
 
+	// Documentations
+	BaseURL   string     `json:"baseURL"`
+	Endpoints []Endpoint `json:"endpoints"`
+
 	// user roles for auth
 	Roles map[string]Role `json:"roles"`
 
@@ -52,7 +54,6 @@ type App struct {
 	// Gin router
 	Router *gin.Engine
 
-	Sessions Sessioner `json:"-"`
 	// turn off auth service check
 	FirstRun        bool   `json:"firtRun"`
 	AuthOff         bool   `json:"authOff"`
@@ -71,11 +72,12 @@ func NewApp(name string, store EventStore) *App {
 	app.Name = name
 	app.Roles = make(map[string]Role)
 	app.Entities = make(map[string]*EntityConf)
+	app.Endpoints = make([]Endpoint, 0)
 	app.Router = gin.New()
 	app.Store = store
 	app.MainLog = strings.Replace(strings.ToLower(app.Name), " ", "_", -1) + "_log"
 	// set default session validity
-	app.SessionValidity = "60m"
+	app.SessionValidity = "300m"
 	d, _ := time.ParseDuration(app.SessionValidity)
 	app.sduration = d
 	return &app
@@ -87,10 +89,7 @@ func (app *App) String() string {
 }
 
 // Add Auth functionality
-func (app *App) Auth(s Sessioner, evh ...EventHandler) {
-	// Add user entity
-	app.Sessions = s
-
+func (app *App) Auth(evh ...EventHandler) {
 	userEntity := NewEntityConf(UserEntity)
 	userEntity.AddCRUD(false)
 
@@ -100,12 +99,6 @@ func (app *App) Auth(s Sessioner, evh ...EventHandler) {
 	userEntity.AddEventHandler(UserEventHandler{})
 	userEntity.SetBaseStruct(User{})
 
-	accEntity := NewEntityConf(AccEntity)
-	accEntity.SetBaseStruct(Account{})
-	accEntity.AddCRUD(true)
-	accEntity.Reference("users", "admid", false)
-
-	app.RegisterEntity(accEntity)
 	app.RegisterEntity(userEntity)
 }
 
@@ -217,9 +210,6 @@ func (app *App) HandleEvent(entityName, id, accid, userid, role string, ev Event
 // Start app
 func (app *App) Run(port string) error {
 
-	log.Println("-----------------------------------", "\n")
-	log.Println("Correlation stream: ", app.MainLog)
-	log.Println("-----------------------------------")
 	app.Router.GET("/up", UpHandler)
 	app.Router.POST("/event/:entity", HTTPEventHandler)
 	app.Router.GET("/docs", DocHandler)
@@ -229,6 +219,10 @@ func (app *App) Run(port string) error {
 	app.Router.POST("/session/renew", AuthRenewHandler)
 	runningApp = app
 
+	log.Println("-----------------------------------", "\n")
+	log.Println("Correlation stream: ", app.MainLog)
+	log.Println("-----------------------------------")
+
 	return runningApp.Router.Run(port)
 }
 
@@ -237,9 +231,8 @@ func UpHandler(c *gin.Context) {
 }
 
 type SessionClaims struct {
-	Username  string `json:"use"`
-	Role      string `json:"rol"`
-	AccountID string `json:"accid"`
+	Username string `json:"use"`
+	Role     string `json:"rol"`
 	jwt.StandardClaims
 }
 
@@ -283,22 +276,7 @@ func AuthHandler(c *gin.Context) {
 		//TODO CHECK IP
 	}
 
-	// Create token with basic user data
-	claims := SessionClaims{
-		u.Username,
-		u.Role,
-		u.AccountID,
-		jwt.StandardClaims{
-			IssuedAt:  time.Now().Unix(),
-			ExpiresAt: time.Now().Add(runningApp.sduration).Unix(),
-			Issuer:    runningApp.Name,
-			Id:        lib.NewShortId(""),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Sign and get the complete encoded token as a string using the secret
-	tokenString, _ := token.SignedString([]byte(runningApp.Secret))
+	tokenString := BuildToken(u)
 
 	c.SetCookie("cs", tokenString, -1, "/", runningApp.Domain, false, true)
 	c.JSON(200, map[string]string{"auth-token": tokenString})
@@ -338,7 +316,6 @@ func HTTPEventHandler(c *gin.Context) {
 		}
 		userid = claims.Username
 		role = claims.Role
-		accid = claims.AccountID
 	} else {
 		userid = c.Request.Header.Get(UserHeader)
 		if userid == "" {
@@ -348,26 +325,11 @@ func HTTPEventHandler(c *gin.Context) {
 		if !runningApp.FirstRun {
 			err = runningApp.CheckReference(UserEntity, "", userid, false)
 			if err != nil {
-				c.JSON(401, map[string]interface{}{"error": "Invalid noauth username"})
+				c.JSON(401, map[string]interface{}{"error": "Invalid noauth username does not exist, try to run as: firstrun"})
 				return
 			}
 		}
 
-		if entityName != AccEntity {
-			accid = c.Request.Header.Get(AccountHeader)
-			if accid == "" {
-				c.JSON(401, map[string]interface{}{"error": "Invalid accountid"})
-				return
-			}
-
-			if !runningApp.FirstRun {
-				err = runningApp.CheckReference(AccEntity, "", accid, false)
-				if err != nil {
-					c.JSON(401, map[string]interface{}{"error": "Invalid accoundid,does not exist"})
-					return
-				}
-			}
-		}
 	}
 
 	err = c.BindJSON(&data)
@@ -407,7 +369,7 @@ func EventsDocHandler(c *gin.Context) {
 }
 
 func EntityHandler(c *gin.Context) {
-	var cl *SessionClaims
+	//var cl *SessionClaims
 	var err error
 
 	e := c.Param("entity")
@@ -415,7 +377,7 @@ func EntityHandler(c *gin.Context) {
 
 	if !runningApp.AuthOff {
 		// I should auth read also
-		cl, err = runningApp.authRead(e, c)
+		_, err = runningApp.authRead(e, c)
 		if err != nil {
 			c.JSON(401, map[string]string{"error1": err.Error()})
 			return
@@ -430,24 +392,10 @@ func EntityHandler(c *gin.Context) {
 		return
 	}
 
-	econf, ok := runningApp.Entities[e]
+	_, ok := runningApp.Entities[e]
 	if !ok {
 		c.JSON(400, map[string]string{"error": "invalid entity conf"})
 		return
-	}
-
-	// auth with custom auther
-	if econf.Auther != nil {
-		if cl == nil {
-			c.JSON(401, map[string]string{"error": "Invalid session claims"})
-			return
-		}
-
-		err = econf.Auther.AuthRead(entity, cl.Username, cl.Role)
-		if err != nil {
-			c.JSON(401, map[string]string{"error": err.Error()})
-			return
-		}
 	}
 
 	c.JSON(200, entity)
@@ -546,24 +494,16 @@ func (app *App) auth(event string, c *gin.Context) (*SessionClaims, error) {
 	}
 
 	// create session claimsfrom token
-	token, err := jwt.ParseWithClaims(t, &SessionClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(app.Secret), nil
-	})
-
-	if token == nil {
+	claims, err := AuthToken(t, app.Secret)
+	if err != nil {
 		return nil, err
 	}
 
-	if claims, ok := token.Claims.(*SessionClaims); ok && token.Valid {
-		if !app.authRole(claims.Role, event) {
-			return nil, errors.New("Invalid Role, " + claims.Role)
-		}
-
-		return claims, err
-	} else {
-		return nil, err
+	if !app.authRole(claims.Role, event) {
+		return nil, errors.New("Invalid Role, " + claims.Role)
 	}
 
+	return claims, err
 }
 
 func (app *App) getSession(c *gin.Context) (*SessionClaims, error) {

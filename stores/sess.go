@@ -1,5 +1,7 @@
 package stores
 
+/*
+
 import (
 	"errors"
 	"github.com/diegogub/gocqrs"
@@ -56,3 +58,4 @@ func (m *MemSessions) Valid(id string) (*gocqrs.Session, error) {
 	m.lock.Unlock()
 	return &s, nil
 }
+*/

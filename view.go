@@ -1,7 +1,6 @@
 package gocqrs
 
 import (
-	"fmt"
 	"log"
 	"time"
 )
@@ -47,7 +46,6 @@ func NewView(name string, i Viewer) *View {
 func (v *View) awake() {
 	for {
 		time.Sleep(v.every)
-		log.Println("Slept for ", v.every, " ,waking up")
 		v.wakeUP <- true
 	}
 }
@@ -81,7 +79,6 @@ func (v *View) Run(action string, params map[string]string, dev bool) error {
 	mainStream := v.V.Stream()
 	for {
 		v.running = true
-		fmt.Println("-------------------")
 		curVersion, err := v.V.Status()
 		if err != nil {
 			log.Println("View not started, no status available")
@@ -93,9 +90,9 @@ func (v *View) Run(action string, params map[string]string, dev bool) error {
 			continue
 		}
 
-		log.Println("current Version:", curVersion, " evento version:", esVersion)
-		log.Println(mainStream)
 		if esVersion > curVersion || curVersion == 0 {
+			log.Println("current Version:", curVersion, " evento version:", esVersion)
+			log.Println(mainStream)
 			log.Println("Catching up from version ", curVersion, " to version ", esVersion)
 			var events chan Event
 			if curVersion == 0 {
@@ -107,6 +104,7 @@ func (v *View) Run(action string, params map[string]string, dev bool) error {
 			for e := range events {
 				err := v.V.Apply(e)
 				log.Println("Applying..", e.EventVersion)
+				log.Println(e)
 				if err != nil {
 					log.Println(err)
 					log.Fatal("Failed to apply event :", e)
@@ -114,7 +112,6 @@ func (v *View) Run(action string, params map[string]string, dev bool) error {
 			}
 		}
 		v.running = false
-		fmt.Println("-------------------")
 
 		select {
 		case <-v.wakeUP:
