@@ -15,6 +15,7 @@ type Eventer interface {
 	SetData(k string, i interface{})
 	ClearData()
 	GetLinks() []string
+	Has(string) bool
 }
 
 type BaseEvent struct {
@@ -57,6 +58,15 @@ func (e *Event) GetData() map[string]interface{} {
 	return e.EventData
 }
 
+func (e *Event) Has(k string) bool {
+	if e.EventData == nil {
+		return false
+	} else {
+		_, has := e.EventData[k]
+		return has
+	}
+}
+
 func (e *Event) GetLinks() []string {
 	return []string{e.CorrelationStream}
 }
@@ -75,6 +85,10 @@ func (e *Event) GetType() string {
 
 func (e *Event) GetVersion() uint64 {
 	return e.EventVersion
+}
+
+func (e *Event) SetStructData(i interface{}) error {
+	e.EventData[k] = i
 }
 
 func (e *Event) SetData(k string, i interface{}) {
